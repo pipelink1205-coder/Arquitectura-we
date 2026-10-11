@@ -60,3 +60,36 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 ```
 
 Pon `APP_ENV=production`, `APP_DEBUG=false` y `APP_URL` con el dominio real; las etiquetas `og:` y `canonical` lo usan.
+
+## Despliegue en el servidor (pull)
+
+Repositorio: [pipelink1205-coder/Arquitectura-we](https://github.com/pipelink1205-coder/Arquitectura-we)
+
+Primera vez en el servidor (PHP ≥ 8.3, Composer, Node):
+
+```bash
+cd /var/www   # o la carpeta que uses
+git clone https://github.com/pipelink1205-coder/Arquitectura-we.git arquitectura-we
+cd arquitectura-we
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite   # si usas SQLite
+php artisan migrate --force
+composer install --no-dev --optimize-autoloader
+npm ci && npm run build
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+
+Actualizar después de un `git push`:
+
+```bash
+cd /ruta/al/proyecto/arquitectura-we
+git pull origin main
+composer install --no-dev --optimize-autoloader
+npm ci && npm run build
+php artisan migrate --force
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+php artisan queue:restart   # si usas cola en producción
+```
+
+Configura el virtual host apuntando la raíz web a `public/`. No subas `.env` al repositorio; créalo solo en el servidor.
