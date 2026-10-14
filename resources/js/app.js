@@ -2,25 +2,27 @@
  * Arquitectura y Construcciones WE — interacciones de la página principal.
  * Navegación, contadores, cintas de obra, filtros, visor de fotos y formulario.
  */
-(function(){
+document.addEventListener('DOMContentLoaded',function(){
   'use strict';
   var $=function(id){return document.getElementById(id)};
   var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- Menú móvil (antes del scroll: onScroll lo referencia) ---- */
+  var menu=$('menu'),burger=$('burger');
+  if(!menu||!burger)return;
 
   /* ---- Scroll: nav sólida, barra de progreso, botón arriba ---- */
   var nav=$('nav'),pg=$('pg'),up=$('arriba'),ticking=false;
   function onScroll(){
     var y=scrollY,h=document.documentElement.scrollHeight-innerHeight;
-    nav.classList.toggle('solid',y>30||menu.classList.contains('open'));
-    pg.style.transform='scaleX('+(h>0?Math.min(y/h,1):0)+')';
-    up.classList.toggle('on',y>innerHeight*1.2);
+    if(nav)nav.classList.toggle('solid',y>30||menu.classList.contains('open'));
+    if(pg)pg.style.transform='scaleX('+(h>0?Math.min(y/h,1):0)+')';
+    if(up)up.classList.toggle('on',y>innerHeight*1.2);
     ticking=false;
   }
   addEventListener('scroll',function(){if(!ticking){ticking=true;requestAnimationFrame(onScroll)}},{passive:true});
-  up.addEventListener('click',function(){scrollTo({top:0,behavior:reduce?'auto':'smooth'})});
+  if(up)up.addEventListener('click',function(){scrollTo({top:0,behavior:reduce?'auto':'smooth'})});
 
-  /* ---- Menú móvil ---- */
-  var menu=$('menu'),burger=$('burger');
   function setMenu(open){
     menu.classList.toggle('open',open);
     burger.setAttribute('aria-expanded',open);
@@ -87,6 +89,7 @@
 
   /* ---- Visor de fotos ---- */
   var lb=$('lb'),li=$('lb-img'),cap=$('lb-cap'),cur=0,lastFocus=null;
+  if(lb&&li&&cap){
   function visibles(){return obras.filter(function(o){return !o.hidden})}
   function mostrar(i){
     var v=visibles();cur=(i+v.length)%v.length;
@@ -110,10 +113,17 @@
   li.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
   li.addEventListener('touchend',function(e){if(sx===null)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
     if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))mostrar(cur+(dx<0?1:-1));sx=null},{passive:true});
+  }
 
   /* ---- Formulario: validación en el navegador + envío a Laravel ---- */
-  var form=$('form'),st=$('st'),MAIL=form.dataset.correo;
-  var token=document.querySelector('meta[name="csrf-token"]').content;
+  var form=$('form'),st=$('st');
+  if(!form||!st)return;
+  var MAIL=form.dataset.correo;
+  var tokenMeta=document.querySelector('meta[name="csrf-token"]');
+  var token=tokenMeta?tokenMeta.content:'';
+  var sinServidor=document.documentElement.dataset.standalone==='1'
+    ||location.protocol==='file:'
+    ||token==='offline';
   var campos={nombre:$('fn'),telefono:$('ft'),correo:$('fe'),servicio:$('fs'),mensaje:$('fm'),consentimiento:$('fc')};
   function datos(){return{n:$('fn').value.trim(),t:$('ft').value.trim(),e:$('fe').value.trim(),s:$('fs').value,m:$('fm').value.trim()}}
   function limpiar(){
@@ -151,21 +161,27 @@
       if(n&&n.classList.contains('campo-err'))n.remove();
     }
   });
-  $('wa').addEventListener('click',function(){
-    var d=datos();if(!valido(d))return;var p=$('fw').value.split('|');
+  function abrirWhatsApp(d){
+    var sel=$('fw');if(!sel)return false;
+    var p=sel.value.split('|');
     var msg='Hola '+p[1]+', soy '+d.n+'. Me interesa el servicio de '+d.s+'.\n\n'+d.m+'\n\nMi teléfono: '+d.t+(d.e?'\nMi correo: '+d.e:'');
-    window.open('https://wa.me/'+p[0]+'?text='+encodeURIComponent(msg),'_blank','noopener');
+    var url='https://wa.me/'+p[0]+'?text='+encodeURIComponent(msg);
+    var w=window.open(url,'_blank','noopener');
+    if(!w)location.href=url;
     st.className='status ok';st.textContent='Abrimos WhatsApp con tu mensaje listo para enviar.';
-  });
+    return true;
+  }
+  var btnWa=$('wa');
+  if(btnWa)btnWa.addEventListener('click',function(){var d=datos();if(!valido(d))return;abrirWhatsApp(d);});
+  function porCorreo(d){
+    var body='Nombre: '+d.n+'\nTeléfono: '+d.t+(d.e?'\nCorreo: '+d.e:'')+'\nServicio: '+d.s+'\n\n'+d.m;
+    location.href='mailto:'+MAIL+'?subject='+encodeURIComponent('Consulta desde la web: '+d.s)+'&body='+encodeURIComponent(body);
+    st.className='status';st.textContent='Abrimos tu aplicación de correo con el mensaje listo para enviar.';
+  }
   form.addEventListener('submit',function(e){
     e.preventDefault();var d=datos();if(!valido(d))return;
-    var b=$('send');b.disabled=true;st.className='status';st.textContent='Enviando…';
-    /* Si el servidor no responde, se abre el correo del usuario con el mensaje listo */
-    function porCorreo(){
-      var body='Nombre: '+d.n+'\nTeléfono: '+d.t+(d.e?'\nCorreo: '+d.e:'')+'\nServicio: '+d.s+'\n\n'+d.m;
-      location.href='mailto:'+MAIL+'?subject='+encodeURIComponent('Consulta desde la web: '+d.s)+'&body='+encodeURIComponent(body);
-      st.className='status';st.textContent='Abrimos tu aplicación de correo con el mensaje listo para enviar.';
-    }
+    var b=$('send');if(b)b.disabled=true;st.className='status';st.textContent='Enviando…';
+    if(sinServidor){porCorreo(d);if(b)b.disabled=false;return;}
     fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',
       headers:{Accept:'application/json','X-CSRF-TOKEN':token,'X-Requested-With':'XMLHttpRequest'}})
     .then(function(r){
@@ -174,10 +190,10 @@
         else if(r.status===422&&j.errors)erroresServidor(j.errors);
         else if(r.status===429){st.className='status err';st.textContent='Enviaste varias solicitudes seguidas. Espera un minuto e inténtalo de nuevo.'}
         else if(r.status===419){st.className='status err';st.textContent='La página estuvo abierta mucho tiempo. Recárgala e intenta de nuevo.'}
-        else porCorreo();
+        else porCorreo(d);
       });
     })
-    .catch(porCorreo)
-    .finally(function(){b.disabled=false});
+    .catch(function(){porCorreo(d);})
+    .finally(function(){if(b)b.disabled=false;});
   });
-})();
+});

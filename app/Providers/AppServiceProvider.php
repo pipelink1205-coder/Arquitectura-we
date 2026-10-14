@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\SitioBuilder;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,7 +21,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // El contenido de config/sitio.php queda disponible en todas las vistas como $sitio
-        View::composer('*', fn ($view) => $view->with('sitio', config('sitio')));
+        View::composer('*', function ($view) {
+            if (! str_starts_with($view->name(), 'admin.')) {
+                $view->with('sitio', app(SitioBuilder::class)->build());
+            }
+        });
     }
 }

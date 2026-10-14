@@ -1,0 +1,38 @@
+# Hostinger VPS — Nginx + PHP-FPM (recomendado).
+# Copia a /etc/nginx/sites-available/tu-dominio.conf y enlaza en sites-enabled.
+# Ajusta: server_name, root, fastcgi_pass (versión PHP del VPS).
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name arquitecturayconstruccioneswe.com www.arquitecturayconstruccioneswe.com;
+
+    root /var/www/arquitectura-we/public;
+    index index.php;
+
+    charset utf-8;
+    client_max_body_size 12M;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# SSL (después de certbot):
+# certbot --nginx -d arquitecturayconstruccioneswe.com -d www.arquitecturayconstruccioneswe.com

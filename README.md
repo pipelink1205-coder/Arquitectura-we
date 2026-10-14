@@ -16,13 +16,24 @@ npm install
 composer run dev              # servidor + Vite en http://localhost:8000
 ```
 
+En Windows, si `php artisan` falla por **PHP 8.2 (XAMPP)**, usa los scripts del repo:
+
+```powershell
+.\setup.ps1    # migrate + seed (panel admin)
+.\dev.ps1      # servidor + Vite con PHP correcto
+.\artisan.ps1 migrate   # cualquier comando artisan
+```
+
+No ejecutes solo `npm run dev` en otra terminal si ya corre `dev.ps1` (conflicto de puertos Vite). Si no levantas Vite, hace falta `npm run build` al menos una vez.
+
 Pruebas: `php artisan test`
 
 ## Dónde está cada cosa
 
 | Qué | Dónde |
 |---|---|
-| **Textos, obras, contactos, FAQ** | `config/sitio.php` (lo único que hay que tocar para cambiar contenido) |
+| **Textos, contactos, FAQ** | `config/sitio.php` |
+| **Servicios y proyectos (editable)** | Panel `/admin` o, si la BD está vacía, `config/sitio.php` |
 | Layout (head, SEO, JSON-LD) | `resources/views/layouts/app.blade.php` |
 | Secciones de la página | `resources/views/secciones/*.blade.php` |
 | Menú, pie, botones flotantes, visor | `resources/views/partials/` |
@@ -52,6 +63,25 @@ Los contadores de los filtros se calculan solos.
 
 Para que los correos se envíen de verdad, configura `MAIL_*` en `.env`. Las instrucciones para Gmail están en `.env.example`.
 
+## Panel de administración
+
+Panel ligero en **`/admin`** (sin Filament): editar **servicios** y **proyectos** del sitio. Si hay registros activos en la base de datos, la landing los usa en lugar de `config/sitio.php` para esas secciones.
+
+```bash
+php artisan migrate
+php artisan db:seed    # crea admin + importa servicios/obras desde config/sitio.php
+```
+
+Credenciales por defecto (cámbialas en `.env` con `ADMIN_EMAIL` y `ADMIN_PASSWORD` antes del seed, o edita el usuario en la BD):
+
+| Campo | Valor local |
+|---|---|
+| URL | http://127.0.0.1:8000/admin |
+| Correo | `admin@we.local` |
+| Contraseña | `WeAdmin2026!` |
+
+En Windows, si `php artisan` falla por versión de PHP, usa el mismo PATH que `dev.ps1` (PHP 8.5 de Herd Lite).
+
 ## Producción
 
 ```bash
@@ -60,6 +90,18 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 ```
 
 Pon `APP_ENV=production`, `APP_DEBUG=false` y `APP_URL` con el dominio real; las etiquetas `og:` y `canonical` lo usan.
+
+## Despliegue en VPS Hostinger
+
+Guía paso a paso (SSH, Nginx, `.env`, SSL, panel `/admin`): **[deploy/HOSTINGER-VPS.md](deploy/HOSTINGER-VPS.md)**.
+
+En el servidor, después de clonar y configurar `.env`:
+
+```bash
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh --first    # primera vez
+./scripts/deploy.sh            # actualizaciones
+```
 
 ## Despliegue en el servidor (pull)
 
@@ -93,3 +135,20 @@ php artisan queue:restart   # si usas cola en producción
 ```
 
 Configura el virtual host apuntando la raíz web a `public/`. No subas `.env` al repositorio; créalo solo en el servidor.
+
+### HTML en un solo archivo (todo embebido)
+
+Para enviar por correo, USB o hosting estático sin PHP:
+
+```bash
+npm run build
+php scripts/exportar-html-embebido.php
+```
+
+Genera `public/exposicion-embebido.html` (~23 MB): estilos, scripts, fuente Archivo e imágenes en base64.
+
+- **Menú, filtros y visor**: funcionan al abrir el archivo (el JS va al final del `<body>`).
+- **WhatsApp**: abre el chat con el mensaje armado.
+- **Enviar por correo** (archivo suelto): abre tu app de correo (`mailto:`) hacia `arquitecturayconstruccioneswe@gmail.com`; no envía solo desde el servidor.
+
+Para que el formulario **envíe correo automático** (Laravel + `MAIL_*` en `.env`), usa el sitio completo en `/`, no solo el HTML embebido.
